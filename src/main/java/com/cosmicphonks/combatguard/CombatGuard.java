@@ -38,6 +38,7 @@ public final class CombatGuard extends JavaPlugin implements Listener {
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
     private final Map<UUID, Long> combatUntil = new HashMap<>();
     private final Map<UUID, UUID> opponents = new HashMap<>();
+    private final Map<UUID, Long> lastCombatNotice = new HashMap<>();
     private final Map<UUID, PendingLogout> pending = new HashMap<>();
     private File pendingFile;
     private YamlConfiguration pendingYaml;
@@ -63,6 +64,7 @@ public final class CombatGuard extends JavaPlugin implements Listener {
         savePending();
         combatUntil.clear();
         opponents.clear();
+        lastCombatNotice.clear();
     }
 
     private void loadPending() {
@@ -153,6 +155,12 @@ public final class CombatGuard extends JavaPlugin implements Listener {
         combatUntil.put(b.getUniqueId(), until);
         opponents.put(a.getUniqueId(), b.getUniqueId());
         opponents.put(b.getUniqueId(), a.getUniqueId());
+        long duration = getConfig().getLong("combat.duration-seconds", 20);
+        lastCombatNotice.put(a.getUniqueId(), duration);
+        lastCombatNotice.put(b.getUniqueId(), duration);
+        String format = getConfig().getString("combat.chat-format", "&c{time}s &fCombat").replace("{time}", Long.toString(duration));
+        a.sendMessage(message(format));
+        b.sendMessage(message(format));
     }
 
     private boolean inCombat(Player player) {
@@ -162,17 +170,24 @@ public final class CombatGuard extends JavaPlugin implements Listener {
     private void tickCombat() {
         long now = System.currentTimeMillis();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            Long until = combatUntil.get(player.getUniqueId());
+            UUID id = player.getUniqueId();
+            Long until = combatUntil.get(id);
             if (until == null) continue;
             long remaining = until - now;
             if (remaining <= 0) {
-                combatUntil.remove(player.getUniqueId());
-                opponents.remove(player.getUniqueId());
-                player.sendActionBar(message(getConfig().getString("combat.end-message", "&fYou're Out of &cCombat&f!")));
+                combatUntil.remove(id);
+                opponents.remove(id);
+                lastCombatNotice.remove(id);
+                player.sendMessage(message(getConfig().getString("combat.end-message", "&fYou're Out of &cCombat&f!")));
             } else {
                 long seconds = (remaining + 999L) / 1000L;
-                String format = getConfig().getString("combat.actionbar-format", "&c{time}s &fCombat").replace("{time}", Long.toString(seconds));
-                player.sendActionBar(message(format));
+                Long lastNotice = lastCombatNotice.get(id);
+                if (seconds > 0 && seconds % 5 == 0 && (lastNotice == null || lastNotice.longValue() != seconds)) {
+                    String format = getConfig().getString("combat.chat-format", "&c{time}s &fCombat")
+                            .replace("{time}", Long.toString(seconds));
+                    player.sendMessage(message(format));
+                    lastCombatNotice.put(id, seconds);
+                }
             }
         }
     }
@@ -214,6 +229,7 @@ public final class CombatGuard extends JavaPlugin implements Listener {
         if (!inCombat(player)) {
             combatUntil.remove(id);
             opponents.remove(id);
+            lastCombatNotice.remove(id);
             return;
         }
         PendingLogout record = new PendingLogout();
@@ -233,6 +249,7 @@ public final class CombatGuard extends JavaPlugin implements Listener {
         player.saveData();
         combatUntil.remove(id);
         opponents.remove(id);
+        lastCombatNotice.remove(id);
         long delay = Math.max(1L, (record.deadline - System.currentTimeMillis() + 49L) / 50L);
         Bukkit.getScheduler().runTaskLater(this, () -> punishIfExpired(id), delay);
     }
