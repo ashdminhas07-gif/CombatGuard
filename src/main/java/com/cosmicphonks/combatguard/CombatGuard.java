@@ -96,7 +96,7 @@ public final class CombatGuard extends JavaPlugin implements Listener {
         if (section == null) return result;
         for (String k : section.getKeys(false)) {
             Object value = section.get(k);
-            if (value instanceof ItemStack item && !item.getType().isAir()) result.add(item.clone());
+            if (value instanceof ItemStack item && !item.getType().isAir()) result.add(item.clone());\n            else result.add(null);
         }
         return result;
     }
@@ -123,7 +123,7 @@ public final class CombatGuard extends JavaPlugin implements Listener {
 
     private void writeItems(String path, List<ItemStack> items) {
         pendingYaml.set(path, null);
-        for (int i = 0; i < items.size(); i++) pendingYaml.set(path + "." + i, items.get(i));
+        for (int i = 0; i < items.size(); i++) {\n            ItemStack item = items.get(i);\n            pendingYaml.set(path + "." + i, item == null ? "AIR_SLOT" : item);\n        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
