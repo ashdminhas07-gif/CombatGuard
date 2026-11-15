@@ -1,0 +1,6 @@
+name: CombatGuard
+version: 1.0.0
+main: com.cosmicphonks.combatguard.CombatGuard
+api-version: '1.21'
+author: CosmicPhonks
+description: Combat tagging and reconnect-safe combat logout handling.
