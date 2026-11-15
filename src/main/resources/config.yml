@@ -1,0 +1,9 @@
+combat:
+  duration-seconds: 20
+  actionbar-format: "&c{time}s &fCombat"
+  end-message: "&fYou're Out of &cCombat&f!"
+  blocked-message: "&cYou cannot do that while in combat!"
+  pearl-blocked-message: "&cYou cannot use Ender Pearls while in combat!"
+reconnect-grace-seconds: 30
+logout-message: "&cYou combat logged! Your items have been dropped."
+rejoin-message: "&aReconnected safely. Your combat logout penalty was cancelled."
