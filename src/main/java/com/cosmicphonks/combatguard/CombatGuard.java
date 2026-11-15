@@ -15,6 +15,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -40,6 +41,7 @@ public final class CombatGuard extends JavaPlugin implements Listener {
     private final Map<UUID, UUID> opponents = new HashMap<>();
     private final Map<UUID, Long> lastCombatNotice = new HashMap<>();
     private final Map<UUID, PendingLogout> pending = new HashMap<>();
+    private final Set<UUID> combatLogging = new HashSet<>();
     private File pendingFile;
     private YamlConfiguration pendingYaml;
 
@@ -232,26 +234,57 @@ public final class CombatGuard extends JavaPlugin implements Listener {
             lastCombatNotice.remove(id);
             return;
         }
-        PendingLogout record = new PendingLogout();
-        record.deadline = System.currentTimeMillis() + Math.max(0, getConfig().getLong("reconnect-grace-seconds", 30)) * 1000L;
-        record.opponent = opponents.getOrDefault(id, id);
-        Location loc = player.getLocation();
-        record.world = loc.getWorld().getName();
-        record.x = loc.getX(); record.y = loc.getY(); record.z = loc.getZ();
-        record.yaw = loc.getYaw(); record.pitch = loc.getPitch();
-        PlayerInventory inv = player.getInventory();
-        record.main = cloneItems(inv.getStorageContents());
-        record.armor = cloneItems(inv.getArmorContents());
-        record.extra = cloneItems(inv.getExtraContents());
-        pending.put(id, record);
-        savePending();
-        inv.clear();
+
+        // Treat every combat disconnect as an immediate /kill.
+        UUID opponentId = opponents.getOrDefault(id, id);
+        Location location = player.getLocation();
+        PlayerInventory inventory = player.getInventory();
+        List<ItemStack> loot = new ArrayList<>();
+        loot.addAll(cloneItems(inventory.getStorageContents()));
+        loot.addAll(cloneItems(inventory.getArmorContents()));
+        loot.addAll(cloneItems(inventory.getExtraContents()));
+
+        combatLogging.add(id);
+        try {
+            player.setHealth(0.0);
+        } catch (IllegalArgumentException ignored) {
+            // The player may already be in a death transition; loot is still handled below.
+        } finally {
+            combatLogging.remove(id);
+        }
+
+        inventory.clear();
         player.saveData();
+        dropCombatLogoutLoot(location, opponentId, loot);
+
         combatUntil.remove(id);
         opponents.remove(id);
         lastCombatNotice.remove(id);
-        long delay = Math.max(1L, (record.deadline - System.currentTimeMillis() + 49L) / 50L);
-        Bukkit.getScheduler().runTaskLater(this, () -> punishIfExpired(id), delay);
+
+        Player opponent = Bukkit.getPlayer(opponentId);
+        if (opponent != null) {
+            opponent.sendMessage(message(getConfig().getString("logout-message",
+                    "&cYour opponent combat logged; their items have been dropped.")));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onCombatLogoutDeath(PlayerDeathEvent event) {
+        if (!combatLogging.contains(event.getEntity().getUniqueId())) return;
+        event.setKeepInventory(true);
+        event.getDrops().clear();
+        event.setDroppedExp(0);
+    }
+
+    private void dropCombatLogoutLoot(Location location, UUID owner, List<ItemStack> loot) {
+        World world = location.getWorld();
+        if (world == null) return;
+        for (ItemStack item : loot) {
+            if (item == null || item.getType().isAir()) continue;
+            Item dropped = world.dropItemNaturally(location, item.clone());
+            dropped.setOwner(owner);
+            dropped.setPickupDelay(0);
+        }
     }
 
     private List<ItemStack> cloneItems(ItemStack[] source) {
