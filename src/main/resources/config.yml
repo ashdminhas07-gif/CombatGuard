@@ -1,6 +1,6 @@
 combat:
   duration-seconds: 20
-  actionbar-format: "&c{time}s &fCombat"
+  chat-format: "&c{time}s &fCombat"
   end-message: "&fYou're Out of &cCombat&f!"
   blocked-message: "&cYou cannot do that while in combat!"
   pearl-blocked-message: "&cYou cannot use Ender Pearls while in combat!"
