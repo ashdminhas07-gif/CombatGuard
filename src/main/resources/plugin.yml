@@ -4,3 +4,12 @@ main: com.cosmicphonks.combatguard.CombatGuard
 api-version: '1.21'
 author: CosmicPhonks
 description: Combat tagging and reconnect-safe combat logout handling.
+commands:
+  combatguard:
+    description: CombatGuard administration
+    usage: /combatguard reload
+    permission: combatguard.reload
+permissions:
+  combatguard.reload:
+    description: Allows reloading CombatGuard configuration
+    default: op
